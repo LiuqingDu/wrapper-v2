@@ -1,0 +1,40 @@
+name: Build and Push Custom Docker Image
+on:
+  push:
+    tags:
+      - 'v*'
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Fetch APK from Oracle Server via SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.ORACLE_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan ${{ secrets.ORACLE_IP }} >> ~/.ssh/known_hosts
+          
+          mkdir -p build_tmp
+          scp -i ~/.ssh/id_rsa ${{ secrets.ORACLE_USER }}@${{ secrets.ORACLE_IP }}:~/am-3.6.0-beta.apkm build_tmp/
+      - name: Extract Apple Libraries
+        run: |
+          bash tools/extract-libs.sh --bundle build_tmp/am-3.6.0-beta.apkm --arch x86_64
+          bash tools/stage-system.sh --arch x86_64
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/wrapper-v2:${{ github.ref_name }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/wrapper-v2:latest
+          platforms: linux/amd64
