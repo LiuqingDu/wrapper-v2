@@ -1,0 +1,44 @@
+# 一、 如何使用这个镜像？
+# 
+# 1. 部署后检查状态 (Smoke Test) 
+# 容器跑起来后，可以通过 /health 接口检查它是否启动成功以及解密模块是否就绪：
+# curl http://127.0.0.1:10010/health
+# 
+# 2. 登录您的 Apple ID (非常重要) 
+# 第一次使用时，您需要通过 API 向守护进程提供您的 Apple ID 账号密码（建议使用 App 专用密码）。
+# 守护进程会通过 Apple 原生的流程进行认证。
+# curl -X POST http://127.0.0.1:10010/login \
+#      -H 'content-type: application/json' \
+#      -d '{"username":"您的AppleID邮箱","password":"您的密码"}'
+# 
+# 如果接口返回了 202，说明需要输入两步验证码 (2FA)。您可以紧接着发送包含验证码的请求：
+# curl -X POST http://127.0.0.1:10010/login/2fa \
+#      -H 'content-type: application/json' \
+#      -d '{"code":"123456"}'
+# 
+# 3. 查看登录状态 
+# 登录成功后，您可以随时查看当前的授权状态：
+# curl http://127.0.0.1:10010/me
+
+version: '3.8'
+
+services:
+  wrapper-v2:
+    image: sleky/wrapper-v2:latest
+    container_name: wrapper-v2
+    restart: unless-stopped
+    cap_add:
+      - SYS_ADMIN
+      - SYS_CHROOT
+      - SYS_PTRACE
+    security_opt:
+      - apparmor:unconfined
+    ports:
+      - "10010:80"
+    volumes:
+      - /vol1/1000/appConfig/wrapper-v2/data:/app/rootfs/data/data/com.apple.android.music/files
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
